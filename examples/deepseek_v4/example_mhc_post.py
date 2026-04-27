@@ -2,17 +2,15 @@
 import os
 import math
 import torch
-import torch_npu
 import tilelang
 import tilelang.language as T
-import torch.nn.functional as F
-from typing import Tuple, Optional
 
-os.environ['TILELANG_ASCEND_MODE'] = 'Developer'
+os.environ["TILELANG_ASCEND_MODE"] = "Developer"
 tilelang.set_log_level("WARNING")
 
 T.float16 = "float16"
 T.float32 = "float32"
+
 
 @tilelang.jit(target="npuir")
 def mhc_post_tilelang(hc: int, hidden: int, n_thr: int = 128, h_blk: int = 1024):
@@ -53,12 +51,15 @@ def mhc_post_tilelang(hc: int, hidden: int, n_thr: int = 128, h_blk: int = 1024)
                 for i_hco, i1_h in T.Parallel(hc, h_blk):
                     x_local[i_hco, i1_h] = c_local[i_hco] * d_local[i1_h]
                     for i_hci in T.serial(hc):
-                        x_local[i_hco, i1_h] += a_local[i_hci, i_hco] * b_local[i_hci, i1_h]
+                        x_local[i_hco, i1_h] += (
+                            a_local[i_hci, i_hco] * b_local[i_hci, i1_h]
+                        )
                 T.copy(x_local, x_shared)
 
                 T.copy(x_shared, x[i_n, 0, i0_h * h_blk])
 
-    return  mhc_post_tilelang_kernel_
+    return mhc_post_tilelang_kernel_
+
 
 def mhc_post(
     x: torch.Tensor,
@@ -111,10 +112,12 @@ def test(n: int, h: int) -> None:
     torch.testing.assert_close(out_tl, out_ref)
     print("\033[92m out check passed!\033[0m")
 
+
 def main():
     for n in [4096]:
         for h in [1280, 2560, 7168]:
             test(n=n, h=h)
+
 
 if __name__ == "__main__":
     main()

@@ -1,7 +1,7 @@
 import torch
 import tilelang
 import tilelang.language as T
-from typing import Tuple, Optional
+from typing import Optional
 
 
 tilelang.set_log_level("WARNING")
@@ -29,8 +29,11 @@ def _round_scale_to_pow2(scale: torch.Tensor) -> torch.Tensor:
 
 
 def _act_quant_torch(
-    x: torch.Tensor, block_size: int = 128, scale_fmt: Optional[str] = None,
-    scale_dtype: torch.dtype = torch.float32, inplace: bool = False,
+    x: torch.Tensor,
+    block_size: int = 128,
+    scale_fmt: Optional[str] = None,
+    scale_dtype: torch.dtype = torch.float32,
+    inplace: bool = False,
 ) -> torch.Tensor:
     """Torch implementation of act_quant_kernel.
 
@@ -46,7 +49,9 @@ def _act_quant_torch(
     if scale_fmt is not None:
         scale = _round_scale_to_pow2(scale)
 
-    q = torch.clamp(x_blocks / scale.unsqueeze(-1), -448.0, 448.0).to(torch.float8_e4m3fn)
+    q = torch.clamp(x_blocks / scale.unsqueeze(-1), -448.0, 448.0).to(
+        torch.float8_e4m3fn
+    )
     s = scale.reshape(*original_shape[:-1], N // block_size).to(scale_dtype)
     if inplace:
         y = (q.float() * scale.unsqueeze(-1)).to(z.dtype).reshape(original_shape)
@@ -75,8 +80,13 @@ def fast_round_scale(amax, fp8_max_inv):
 
 @tilelang.jit(pass_configs=pass_configs)
 def act_quant_kernel(
-    N, block_size=128, in_dtype=BF16, out_dtype=FP8, scale_dtype=FP32,
-    round_scale=False, inplace=False
+    N,
+    block_size=128,
+    in_dtype=BF16,
+    out_dtype=FP8,
+    scale_dtype=FP32,
+    round_scale=False,
+    inplace=False,
 ):
     """Block-wise FP8 quantization. inplace=True does fused quant+dequant back to BF16."""
     M = T.symbolic("M")
@@ -121,9 +131,16 @@ def act_quant_kernel(
                     for i, j in T.Parallel(blk_m, group_size):
                         y_local[i, j] = T.Cast(
                             out_dtype,
-                            T.Cast(compute_dtype, T.Cast(out_dtype, T.clamp(
-                                x_local[i, j] / s_local[i], fp8_min, fp8_max
-                            ))) * s_local[i],
+                            T.Cast(
+                                compute_dtype,
+                                T.Cast(
+                                    out_dtype,
+                                    T.clamp(
+                                        x_local[i, j] / s_local[i], fp8_min, fp8_max
+                                    ),
+                                ),
+                            )
+                            * s_local[i],
                         )
                 else:
                     for i, j in T.Parallel(blk_m, group_size):
@@ -139,8 +156,11 @@ def act_quant_kernel(
 
 
 def act_quant(
-    x: torch.Tensor, block_size: int = 128, scale_fmt: Optional[str] = None,
-    scale_dtype: torch.dtype = torch.float32, inplace: bool = False,
+    x: torch.Tensor,
+    block_size: int = 128,
+    scale_fmt: Optional[str] = None,
+    scale_dtype: torch.dtype = torch.float32,
+    inplace: bool = False,
     backend: Optional[str] = None,
 ) -> torch.Tensor:
     """NPU dynamic quantization.
@@ -158,9 +178,7 @@ def act_quant(
 
 
 @tilelang.jit(pass_configs=pass_configs)
-def fp4_quant_kernel(
-    N, block_size=32, in_dtype=BF16, scale_dtype=FE8M0, inplace=False
-):
+def fp4_quant_kernel(N, block_size=32, in_dtype=BF16, scale_dtype=FE8M0, inplace=False):
     """Block-wise FP4 quantization. Power-of-2 scale via bit ops. inplace=True does fused quant+dequant."""
     M = T.symbolic("M")
     fp4_max = 6.0
@@ -198,9 +216,16 @@ def fp4_quant_kernel(
                     for i, j in T.Parallel(blk_m, group_size):
                         y_local[i, j] = T.Cast(
                             out_dtype,
-                            T.Cast(compute_dtype, T.Cast(FP4, T.clamp(
-                                x_local[i, j] / s_local[i], -fp4_max, fp4_max
-                            ))) * s_local[i],
+                            T.Cast(
+                                compute_dtype,
+                                T.Cast(
+                                    FP4,
+                                    T.clamp(
+                                        x_local[i, j] / s_local[i], -fp4_max, fp4_max
+                                    ),
+                                ),
+                            )
+                            * s_local[i],
                         )
                 else:
                     for i, j in T.Parallel(blk_m, group_size):
@@ -216,13 +241,19 @@ def fp4_quant_kernel(
 
 
 def fp4_act_quant(
-    x: torch.Tensor, block_size: int = 32, inplace: bool = False,
+    x: torch.Tensor,
+    block_size: int = 32,
+    inplace: bool = False,
 ) -> torch.Tensor:
     """Block-wise FP4 quantization. inplace=True does fused quant+dequant back to BF16."""
     N = x.size(-1)
     assert N % block_size == 0
     z = x.contiguous()
-    y = torch.empty_like(z) if inplace else z.new_empty(*z.shape[:-1], N // 2, dtype=torch.float4_e2m1fn_x2)
+    y = (
+        torch.empty_like(z)
+        if inplace
+        else z.new_empty(*z.shape[:-1], N // 2, dtype=torch.float4_e2m1fn_x2)
+    )
     s = z.new_empty(*z.size()[:-1], N // block_size, dtype=torch.float8_e8m0fnu)
     kernel = fp4_quant_kernel(N, block_size, inplace=inplace)
     kernel(z.view(-1, N), y.view(-1, y.size(-1)), s.view(-1, N // block_size))
@@ -248,7 +279,9 @@ def fp8_gemm_kernel(N, K, out_dtype=BF16, accum_dtype=FP32, scale_dtype=FP32):
         B: T.Tensor[(N, K), FP8],
         C: T.Tensor[(M, N), out_dtype],
         scales_a: T.Tensor[(M, T.ceildiv(K, group_size)), scale_dtype],
-        scales_b: T.Tensor[(T.ceildiv(N, group_size), T.ceildiv(K, group_size)), scale_dtype],
+        scales_b: T.Tensor[
+            (T.ceildiv(N, group_size), T.ceildiv(K, group_size)), scale_dtype
+        ],
     ):
         with T.Kernel(T.ceildiv(N, block_N), T.ceildiv(M, block_M), threads=128) as (
             bx,
@@ -273,7 +306,9 @@ def fp8_gemm_kernel(N, K, out_dtype=BF16, accum_dtype=FP32, scale_dtype=FP32):
                 # Cast scales to FP32 for computation; scales_b has one value per block_N group
                 Scale_B = T.Cast(FP32, scales_b[bx * block_N // group_size, k])
                 for i in T.Parallel(block_M):
-                    Scale_C_shared[i] = T.Cast(FP32, scales_a[by * block_M + i, k]) * Scale_B
+                    Scale_C_shared[i] = (
+                        T.Cast(FP32, scales_a[by * block_M + i, k]) * Scale_B
+                    )
 
                 T.gemm(A_shared, B_shared, C_local, transpose_B=True)
                 # Separate accumulator for scale-corrected results (2x accumulation precision)
@@ -287,7 +322,10 @@ def fp8_gemm_kernel(N, K, out_dtype=BF16, accum_dtype=FP32, scale_dtype=FP32):
 
 
 def _fp8_gemm_torch(
-    a: torch.Tensor, a_s: torch.Tensor, b: torch.Tensor, b_s: torch.Tensor,
+    a: torch.Tensor,
+    a_s: torch.Tensor,
+    b: torch.Tensor,
+    b_s: torch.Tensor,
 ) -> torch.Tensor:
     """Torch implementation of fp8_gemm_kernel.
 
@@ -313,8 +351,12 @@ def _fp8_gemm_torch(
 
 
 def fp8_gemm(
-    a: torch.Tensor, a_s: torch.Tensor, b: torch.Tensor, b_s: torch.Tensor,
-    scale_dtype: torch.dtype = torch.float32, backend: Optional[str] = None,
+    a: torch.Tensor,
+    a_s: torch.Tensor,
+    b: torch.Tensor,
+    b_s: torch.Tensor,
+    scale_dtype: torch.dtype = torch.float32,
+    backend: Optional[str] = None,
 ) -> torch.Tensor:
     """C[M,N] = A[M,K] @ B[N,K]^T with per-128 block FP8 scaling on both A and B."""
     backend = _resolve_backend(backend)
@@ -383,12 +425,22 @@ def sparse_attn_kernel(h: int, d: int, scale=None):
 
             for t in T.Pipelined(num_blocks, num_stages=num_stages):
                 for i in T.Parallel(block):
-                    idxs[i] = T.if_then_else(t * block + i < topk, topk_idxs[by, bx, t * block + i], -1)
+                    idxs[i] = T.if_then_else(
+                        t * block + i < topk, topk_idxs[by, bx, t * block + i], -1
+                    )
                 for i, j in T.Parallel(block, d):
-                    kv_shared[i, j] = T.if_then_else(idxs[i] != -1, kv[by, idxs[i], j], 0)
+                    kv_shared[i, j] = T.if_then_else(
+                        idxs[i] != -1, kv[by, idxs[i], j], 0
+                    )
                 for i, j in T.Parallel(h, block):
                     acc_s[i, j] = T.if_then_else(idxs[j] != -1, 0, -T.infinity(FP32))
-                T.gemm(q_shared, kv_shared, acc_s, transpose_B=True, policy=T.GemmWarpPolicy.FullRow)
+                T.gemm(
+                    q_shared,
+                    kv_shared,
+                    acc_s,
+                    transpose_B=True,
+                    policy=T.GemmWarpPolicy.FullRow,
+                )
                 for i, j in T.Parallel(h, block):
                     acc_s[i, j] *= scale
                 T.copy(scores_max, scores_max_prev)
@@ -416,7 +468,11 @@ def sparse_attn_kernel(h: int, d: int, scale=None):
 
 
 def sparse_attn(
-    q: torch.Tensor, kv: torch.Tensor, attn_sink: torch.Tensor, topk_idxs: torch.Tensor, softmax_scale: float
+    q: torch.Tensor,
+    kv: torch.Tensor,
+    attn_sink: torch.Tensor,
+    topk_idxs: torch.Tensor,
+    softmax_scale: float,
 ) -> torch.Tensor:
     b, s, h, d = q.size()
     # Pad heads to 16 for kernel efficiency (stripped after)
@@ -454,9 +510,14 @@ def hc_split_sinkhorn_kernel(hc: int, sinkhorn_iters: int, eps: float):
             for j in T.Parallel(hc):
                 pre[i, j] = T.sigmoid(mixes_shared[j] * hc_scale[0] + hc_base[j]) + eps
             for j in T.Parallel(hc):
-                post[i, j] = 2 * T.sigmoid(mixes_shared[j + hc] * hc_scale[1] + hc_base[j + hc])
+                post[i, j] = 2 * T.sigmoid(
+                    mixes_shared[j + hc] * hc_scale[1] + hc_base[j + hc]
+                )
             for j, k in T.Parallel(hc, hc):
-                comb_frag[j, k] = mixes_shared[j * hc + k + hc * 2] * hc_scale[2] + hc_base[j * hc + k + hc * 2]
+                comb_frag[j, k] = (
+                    mixes_shared[j * hc + k + hc * 2] * hc_scale[2]
+                    + hc_base[j * hc + k + hc * 2]
+                )
 
             row_sum = T.alloc_fragment(hc, FP32)
             col_sum = T.alloc_fragment(hc, FP32)
@@ -490,14 +551,27 @@ def hc_split_sinkhorn_kernel(hc: int, sinkhorn_iters: int, eps: float):
     return hc_split_sinkhorn_kernel_
 
 
-def hc_split_sinkhorn(mixes: torch.Tensor, hc_scale: torch.Tensor, hc_base: torch.Tensor, hc_mult: int = 4, sinkhorn_iters: int = 20, eps: float = 1e-6):
+def hc_split_sinkhorn(
+    mixes: torch.Tensor,
+    hc_scale: torch.Tensor,
+    hc_base: torch.Tensor,
+    hc_mult: int = 4,
+    sinkhorn_iters: int = 20,
+    eps: float = 1e-6,
+):
     b, s, _ = mixes.size()
     pre = mixes.new_empty(b, s, hc_mult)
     post = mixes.new_empty(b, s, hc_mult)
     comb = mixes.new_empty(b, s, hc_mult, hc_mult)
     kernel = hc_split_sinkhorn_kernel(hc_mult, sinkhorn_iters, eps)
-    kernel(mixes.view(-1, (2 + hc_mult) * hc_mult), hc_scale, hc_base,
-           pre.view(-1, hc_mult), post.view(-1, hc_mult), comb.view(-1, hc_mult, hc_mult))
+    kernel(
+        mixes.view(-1, (2 + hc_mult) * hc_mult),
+        hc_scale,
+        hc_base,
+        pre.view(-1, hc_mult),
+        post.view(-1, hc_mult),
+        comb.view(-1, hc_mult, hc_mult),
+    )
     return pre, post, comb
 
 
@@ -522,7 +596,7 @@ def fp4_gemm_kernel(N, K, out_dtype=BF16, accum_dtype=FP32, scale_dtype=FP32):
     weight_group_size = 32
     block_M = 32
     block_N = 128
-    block_K = 32   # matches weight_group_size for simple scale handling
+    block_K = 32  # matches weight_group_size for simple scale handling
     n_sub = act_group_size // block_K  # 4 sub-blocks per act scale group
 
     @T.prim_func
@@ -564,12 +638,16 @@ def fp4_gemm_kernel(N, K, out_dtype=BF16, accum_dtype=FP32, scale_dtype=FP32):
 
                 # Act scale: per 128 on K, indexed by k // 4
                 for i in T.Parallel(block_M):
-                    scale_a_frag[i] = T.Cast(FP32, scales_a[by * block_M + i, k // n_sub])
+                    scale_a_frag[i] = T.Cast(
+                        FP32, scales_a[by * block_M + i, k // n_sub]
+                    )
 
                 T.gemm(A_shared, B_shared, C_local, transpose_B=True)
 
                 for i, j in T.Parallel(block_M, block_N):
-                    C_local_accum[i, j] += C_local[i, j] * scale_a_frag[i] * scale_b_frag[j]
+                    C_local_accum[i, j] += (
+                        C_local[i, j] * scale_a_frag[i] * scale_b_frag[j]
+                    )
                 T.clear(C_local)
 
             T.copy(C_local_accum, C_shared)
@@ -579,7 +657,10 @@ def fp4_gemm_kernel(N, K, out_dtype=BF16, accum_dtype=FP32, scale_dtype=FP32):
 
 
 def fp4_gemm(
-    a: torch.Tensor, a_s: torch.Tensor, b: torch.Tensor, b_s: torch.Tensor,
+    a: torch.Tensor,
+    a_s: torch.Tensor,
+    b: torch.Tensor,
+    b_s: torch.Tensor,
     scale_dtype: torch.dtype = torch.float32,
 ) -> torch.Tensor:
     """C[M,N] = A_fp8[M,K] @ B_fp4[N,K]^T.
