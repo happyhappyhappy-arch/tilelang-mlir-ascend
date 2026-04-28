@@ -2,7 +2,7 @@
 # Usage:
 #    # Do work and commit your work.
 #
-#    # Format files that differ from origin/npuir.
+#    # Format files that differ from origin/master.
 #    bash format.sh
 #
 #    # Format all files.
@@ -56,16 +56,16 @@ fi
 MERGE_BASE=""
 get_merge_base() {
     UPSTREAM_REPO="https://github.com/tile-ai/tilelang-ascend"
-    if git ls-remote --exit-code "${UPSTREAM_REPO}" npuir &>/dev/null; then
+    if git ls-remote --exit-code "${UPSTREAM_REPO}" master &>/dev/null; then
         # First try to use the upstream repository directly
-        MERGE_BASE="$(git fetch "${UPSTREAM_REPO}" npuir &>/dev/null && git merge-base FETCH_HEAD HEAD)"
-    elif git show-ref --verify --quiet refs/remotes/origin/npuir; then
-        # Fall back to origin/npuir if available
-        BASE_BRANCH="origin/npuir"
+        MERGE_BASE="$(git fetch "${UPSTREAM_REPO}" master &>/dev/null && git merge-base FETCH_HEAD HEAD)"
+    elif git show-ref --verify --quiet refs/remotes/origin/master; then
+        # Fall back to origin/master if available
+        BASE_BRANCH="origin/master"
         MERGE_BASE="$(git merge-base "${BASE_BRANCH}" HEAD)"
     else
-        # Last resort, use local npuir
-        BASE_BRANCH="npuir"
+        # Last resort, use local master
+        BASE_BRANCH="master"
         MERGE_BASE="$(git merge-base "${BASE_BRANCH}" HEAD)"
     fi
     echo "${MERGE_BASE}"
