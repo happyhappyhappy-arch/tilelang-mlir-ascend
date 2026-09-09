@@ -72,8 +72,11 @@ the build machine's `PATH`.
 ## CI
 
 NPUIR prebuild, TileLang wheel build and the wheel test job use
-`quay.io/ascend/cann:9.1.0-910b-ubuntu22.04-py3.11`. Both x64 and arm64 builders
-use the image's native platform and Python 3.11. Run steps use
+`quay.io/ascend/cann:9.1.0-910b-ubuntu22.04-py3.11` and the corresponding
+`py3.12` image. Both x64 and arm64 builders produce Python 3.11 and 3.12 wheels
+using the matching image's native Python. NPUIR Python extensions are compiled
+separately for each Python version; the TVM prebuild is shared across Python
+versions on the same architecture. Run steps use
 `bash -l -e -o pipefail {0}`: login Bash reads `/etc/profile`, where the image
 already sources Toolkit, AscendNPU-IR and NNAL. This avoids repeating `source`
 commands in individual steps. GitHub Actions overrides the job container's
@@ -84,10 +87,18 @@ and the [CANN image Dockerfile](https://github.com/Ascend/cann-container-image/b
 - The NPUIR prebuild applies the release backport before upstream dependency
   patches, builds the compiler and bitcode using CANN's BiSheng, and caches the
   installation including `bin` and `lib`.
-- Cache keys include architecture, the pinned NPUIR commit and a hash of the
-  patch directory and prebuild workflow. Wheel jobs use the same key, preventing
-  an unpatched or differently configured compiler cache from being reused.
+- Before starting any NPUIR build container, a host job checks all four caches
+  with `lookup-only`. Only missing architecture/Python combinations enter the
+  container build matrix. If all caches exist, the build job is skipped and the
+  precheck still supplies the NPUIR commit to downstream wheel jobs.
+- Cache keys include architecture, Python version, the pinned NPUIR commit and
+  a hash of the patch directory and prebuild workflow. The precheck, build and
+  wheel jobs all use zstd and matching cache keys. The `toolchain-v2` namespace
+  requires one initial rebuild; old gzip/Python 3.11 caches are not reused.
 - The wheel job copies the cached compiler and bitcode into `3rdparty` directly
   in its existing packaging step, then builds and uploads the wheel.
 - The NPU wheel test uses matched `torch==2.10.0+cpu` / `torch-npu==2.10.0`
-  and runs the existing examples and operator tests.
+  and runs the existing examples and operator tests for both Python versions,
+  sequentially to avoid competing for the same hardware. Reports include the
+  Python version in their artifact name. Release and pre-release uploads collect
+  all four wheels after both test jobs pass.

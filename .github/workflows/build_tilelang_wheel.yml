@@ -26,7 +26,6 @@ permissions:
   contents: read
 
 env:
-  PYTHON_VERSION: "3.11"
   NPUIR_INSTALL_DIR: npuir-prebuild
   TVM_INSTALL_DIR: tvm-prebuild
 
@@ -34,7 +33,7 @@ jobs:
   build-wheel:
     runs-on: ${{ matrix.runner }}
     container:
-      image: quay.io/ascend/cann:9.1.0-910b-ubuntu22.04-py3.11
+      image: quay.io/ascend/cann:9.1.0-910b-ubuntu22.04-py${{ matrix.python-version }}
     defaults:
       run:
         shell: bash -l -e -o pipefail {0}
@@ -42,6 +41,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        arch: [x64, arm64]
+        python-version: ['3.11', '3.12']
         include:
           - arch: x64
             runner: ubuntu-22.04
@@ -51,7 +52,7 @@ jobs:
     - name: Prepare build container
       run: |
         apt-get update
-        apt-get install -y --no-install-recommends git ca-certificates
+        apt-get install -y --no-install-recommends git ca-certificates zstd
         git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
     - name: Checkout
@@ -84,14 +85,14 @@ jobs:
       uses: actions/cache/restore@v4
       with:
         path: ${{ env.NPUIR_INSTALL_DIR }}
-        key: npuir-prebuild-toolchain-v1-${{ matrix.arch }}-${{ steps.prebuild-versions.outputs.npuir }}-${{ hashFiles('3rdparty/patch/**', '.github/workflows/build_ascend_npuir.yml') }}
+        key: npuir-prebuild-toolchain-v2-${{ steps.prebuild-versions.outputs.npuir }}-${{ hashFiles('3rdparty/patch/**', '.github/workflows/build_ascend_npuir.yml') }}-${{ matrix.arch }}-py${{ matrix.python-version }}
         fail-on-cache-miss: true
 
     - name: Install build dependencies
       run: |
         apt-get update
         apt-get install -y --no-install-recommends \
-          cmake make libzstd-dev zlib1g-dev patchelf zstd
+          cmake make libzstd-dev zlib1g-dev patchelf
         pip install -r requirements-build.txt
         pip install lit
 
@@ -140,6 +141,6 @@ jobs:
     - name: Upload wheel artifact
       uses: actions/upload-artifact@v4
       with:
-        name: tilelang-npuir-py${{ env.PYTHON_VERSION }}-${{ matrix.arch }}
+        name: tilelang-npuir-py${{ matrix.python-version }}-${{ matrix.arch }}
         path: dist/*.whl
         retention-days: 30

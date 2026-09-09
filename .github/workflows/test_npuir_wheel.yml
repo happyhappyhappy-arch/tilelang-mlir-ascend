@@ -14,13 +14,17 @@ on:
       wheel-artifact:
         description: "Name of the wheel artifact to download"
         type: string
-        default: "tilelang-npuir-py3.11-arm64"
+        default: ''
+      python-version:
+        description: "Python version used to build the wheel"
+        type: string
+        default: '3.11'
 
 jobs:
   test:
     runs-on: linux-aarch64-a3-2
     container:
-      image: quay.io/ascend/cann:9.1.0-910b-ubuntu22.04-py3.11
+      image: quay.io/ascend/cann:9.1.0-910b-ubuntu22.04-py${{ inputs.python-version }}
     defaults:
       run:
         shell: bash -l -e -o pipefail {0}
@@ -45,7 +49,7 @@ jobs:
     - name: Download arm64 wheel
       uses: actions/download-artifact@v4
       with:
-        name: ${{ inputs.wheel-artifact }}
+        name: ${{ inputs.wheel-artifact || format('tilelang-npuir-py{0}-arm64', inputs.python-version) }}
         path: dist/
 
     - name: Install tilelang and test dependencies
