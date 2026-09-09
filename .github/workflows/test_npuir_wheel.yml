@@ -56,6 +56,7 @@ jobs:
         uv pip install torch-npu==2.7.1
         uv pip install dist/*.whl
         uv pip install pytest pytest-xdist pytest-html numpy
+        uv pip install attrs decorator numpy psutil scipy
 
     - name: Install clang
       run: |
