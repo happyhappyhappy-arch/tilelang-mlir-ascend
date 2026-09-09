@@ -87,20 +87,20 @@ jobs:
         key: npuir-prebuild-toolchain-v1-${{ matrix.arch }}-${{ steps.prebuild-versions.outputs.npuir }}-${{ hashFiles('3rdparty/patch/**', '.github/workflows/build_ascend_npuir.yml') }}
         fail-on-cache-miss: true
 
+    - name: Install build dependencies
+      run: |
+        apt-get update
+        apt-get install -y --no-install-recommends \
+          cmake make libzstd-dev zlib1g-dev patchelf zstd
+        pip install -r requirements-build.txt
+        pip install lit
+
     - name: Restore TVM prebuild from cache
       uses: actions/cache/restore@v4
       with:
         path: ${{ env.TVM_INSTALL_DIR }}
         key: tvm-prebuild-${{ matrix.arch }}-${{ steps.prebuild-versions.outputs.tvm }}
         fail-on-cache-miss: true
-
-    - name: Install build dependencies
-      run: |
-        apt-get update
-        apt-get install -y --no-install-recommends \
-          cmake make libzstd-dev zlib1g-dev patchelf
-        pip install -r requirements-build.txt
-        pip install lit
 
     - name: Build tilelang (cmake)
       run: |
