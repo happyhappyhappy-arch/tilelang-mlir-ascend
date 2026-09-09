@@ -104,8 +104,9 @@ jobs:
 
     - name: Build tilelang (cmake)
       run: |
-        BISHENGIR_PATH="${{ github.workspace }}/${{ env.NPUIR_INSTALL_DIR }}"
-        TVM_PATH="${{ github.workspace }}/${{ env.TVM_INSTALL_DIR }}"
+        # Resolve paths inside the container; github.workspace can name the host path.
+        BISHENGIR_PATH="$GITHUB_WORKSPACE/$NPUIR_INSTALL_DIR"
+        TVM_PATH="$GITHUB_WORKSPACE/$TVM_INSTALL_DIR"
         mkdir -p build
         cp 3rdparty/tvm/cmake/config.cmake build/
         echo "set(USE_NPUIR ON)" >> build/config.cmake
@@ -115,7 +116,7 @@ jobs:
         echo "set(USE_LLVM OFF)" >> build/config.cmake
         echo "set(HIDE_PRIVATE_SYMBOLS ON)" >> build/config.cmake
         echo "set(USE_KALLOC_ALIGNMENT 64)" >> build/config.cmake
-        cmake -B build -DMLIR_INCLUDE_TESTS=ON -DTVM_PREBUILD_PATH=${TVM_PATH} -DTVM_SOURCE_DIR=${{ github.workspace }}/3rdparty/tvm -DPython3_EXECUTABLE=$(which python3)
+        cmake -B build -DMLIR_INCLUDE_TESTS=ON -DTVM_PREBUILD_PATH="$TVM_PATH" -DTVM_SOURCE_DIR="$GITHUB_WORKSPACE/3rdparty/tvm" -DPython3_EXECUTABLE=$(which python3)
         cmake --build build --config Release -j$(nproc)
 
     - name: Run MLIR tests (lit)
@@ -126,9 +127,9 @@ jobs:
       env:
         TILELANG_SKIP_BUILD: "1"
         USE_NPUIR: "true"
-        BISHENGIR_PATH: ${{ github.workspace }}/npuir-prebuild
-        TVM_PREBUILD_PATH: ${{ github.workspace }}/tvm-prebuild
       run: |
+        export BISHENGIR_PATH="$GITHUB_WORKSPACE/$NPUIR_INSTALL_DIR"
+        export TVM_PREBUILD_PATH="$GITHUB_WORKSPACE/$TVM_INSTALL_DIR"
         mkdir -p 3rdparty/bin 3rdparty/lib
         cp -L --preserve=mode "$BISHENGIR_PATH/bin/bishengir-compile" 3rdparty/bin/
         for name in host.bc meta_op.aic.bc meta_op.aiv.bc meta_op.mix.aic.bc meta_op.mix.aiv.bc; do
