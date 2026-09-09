@@ -3665,8 +3665,8 @@ void CodeGenTileLangNPUIRDEVA5::CreateHIVMBinaryVectorOp(const CallNode *op) {
   auto brc0 = builder.getDenseI64ArrayAttr(dims0);
   auto dims1 = getBroadcastDim(buffer_shape1, shape);
   auto brc1 = builder.getDenseI64ArrayAttr(dims1);
-  llvm::SetVector<int64_t> dims(llvm::from_range_t(), dims0);
-  dims.insert_range(dims1);
+  llvm::SetVector<int64_t> dims(dims0.begin(), dims0.end());
+  dims.insert(dims1.begin(), dims1.end());
   mlir::DenseI64ArrayAttr broadcast =
       builder.getDenseI64ArrayAttr(dims.takeVector());
 
@@ -4071,8 +4071,8 @@ void CodeGenTileLangNPUIRDEVA5::VfloordivCodegen(const CallNode *op) {
   auto brc0 = builder.getDenseI64ArrayAttr(dims0);
   auto dims1 = getBroadcastDim(src1Shape, dstShape);
   auto brc1 = builder.getDenseI64ArrayAttr(dims1);
-  llvm::SetVector<int64_t> dims(llvm::from_range_t(), dims0);
-  dims.insert_range(dims1);
+  llvm::SetVector<int64_t> dims(dims0.begin(), dims0.end());
+  dims.insert(dims1.begin(), dims1.end());
   mlir::DenseI64ArrayAttr broadcast =
       builder.getDenseI64ArrayAttr(dims.takeVector());
   src0 = broadcastOrTranspose(src0, insertBase, brc0, transpose, builder);

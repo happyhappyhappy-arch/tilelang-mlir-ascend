@@ -2798,8 +2798,8 @@ void CodeGenTileLangNPUIRAPIA5::CreateHIVMBinaryVectorOp(const CallNode *op) {
   }
   auto dims0 = getBroadcastDim(buffer_shape0, shape);
   auto dims1 = getBroadcastDim(buffer_shape1, shape);
-  llvm::SetVector<int64_t> dims(llvm::from_range_t(), dims0);
-  dims.insert_range(dims1);
+  llvm::SetVector<int64_t> dims(dims0.begin(), dims0.end());
+  dims.insert(dims1.begin(), dims1.end());
   mlir::DenseI64ArrayAttr broadcast =
       builder.getDenseI64ArrayAttr(dims.takeVector());
 

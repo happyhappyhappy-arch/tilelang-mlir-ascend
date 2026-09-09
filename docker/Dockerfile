@@ -141,11 +141,19 @@ RUN cd tilelang-ascend/3rdparty/AscendNPU-IR && \
 #          LLVM/MLIR produces massive -Wsign-compare / -Wformat-nonliteral noise
 #          that fills the log buffer and makes the build appear hung.
 RUN cd tilelang-ascend/3rdparty/AscendNPU-IR && \
-    bash ./build-tools/apply_patches.sh && \
     rm -rf ./build && \
     ./build-tools/build.sh -o ./build --python-binding --c-compiler=clang --cxx-compiler=clang++ \
     --add-cmake-options="-DCMAKE_LINKER=lld -DLLVM_ENABLE_LLD=ON -DLLVM_ENABLE_RTTI=ON -DCMAKE_C_FLAGS=-w -DCMAKE_CXX_FLAGS=-w" \
-    --apply-patches --bishengir-publish=off
+    --bishengir-publish=ON --build-triton \
+    --build-bishengir-template --bisheng-compiler="$(dirname "$(command -v ccec)")" && \
+    cmake --install build && \
+    NPUIR_INCLUDE_DIR="$(pwd)/build/install/include" && \
+    for include_dir in bishengir/triton/{include,bin,third_party} \
+        build/tools/bishengir/bishengir/triton/{include,third_party}; do \
+        (cd "$include_dir" && find . -type f \
+            \( -name '*.h' -o -name '*.inc' -o -name '*.td' -o -name '*.def' \) \
+            -exec cp --parents -t "$NPUIR_INCLUDE_DIR" {} +) || exit 1; \
+    done
 
 # Step 3f: Save build artifacts and clean source to reduce final image size
 RUN mkdir -p /build/AscendNPU-IR/build && \

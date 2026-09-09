@@ -2359,7 +2359,7 @@ void CodeGenTileLangNPUIRDEV::VcumsumCodegen(const CallNode *op) {
   }
   auto newCumsumOp = builder.create<mlir::hivm::VCumsumOp>(
       loc, result_tensors, src, dst,
-      builder.getDenseI64ArrayAttr(npuirop.cum_dims));
+      builder.getDenseI64ArrayAttr(npuirop.cum_dims), /*reverse=*/false);
   SetVarValue(npuirop.dst, newCumsumOp->getResult(0));
 }
 
@@ -2677,8 +2677,10 @@ void CodeGenTileLangNPUIRDEV::FixpipeCodegen(const CallNode *op) {
   // gen hivm.hir.fixpipe
   mlir::Location unknown_loc = builder.getUnknownLoc();
   mlir::TypeRange result = {};
-  mlir::UnitAttr enable_nz2nd =
-      npuirop.enable_nz2nd ? builder.getUnitAttr() : mlir::UnitAttr();
+  auto dma_mode = mlir::hivm::FixpipeDMAModeAttr::get(
+      builder.getContext(), npuirop.enable_nz2nd
+                                ? mlir::hivm::FixpipeDMAMode::NZ2ND
+                                : mlir::hivm::FixpipeDMAMode::NZ2NZ);
   mlir::hivm::FixpipePreReluMode pre_relu_mode =
       fixpipe_pre_relu_mode[npuirop.pre_relu_mode];
   auto src_dtype = npuirop.src->dtype;
@@ -2705,9 +2707,10 @@ void CodeGenTileLangNPUIRDEV::FixpipeCodegen(const CallNode *op) {
       mlir::hivm::FixpipePreReluModeAttr::get(builder.getContext(),
                                               pre_relu_mode);
   mlir::BoolAttr channel_split = builder.getBoolAttr(npuirop.channel_split);
-  builder.create<mlir::hivm::FixpipeOp>(unknown_loc, result, src, dst,
-                                        enable_nz2nd, pre_quant, pre_relu,
-                                        channel_split);
+  builder.create<mlir::hivm::FixpipeOp>(unknown_loc, result, src, dst, dma_mode,
+                                        /*dual_dst_mode=*/nullptr,
+                                        /*sub_block_idx=*/nullptr, pre_quant,
+                                        pre_relu, channel_split);
 }
 
 /// Generate hivm.hir.mmadL1 for tl.npuir_dot.
@@ -2877,6 +2880,18 @@ void CodeGenTileLangNPUIRDEV::CreateHIVMBinaryVectorOp(const CallNode *op) {
     auto newOp = builder.create<T>(
         loc, insertBase.getType(), mlir::ValueRange{src0, src1},
         mlir::ValueRange{insertBase}, round_attr, transpose, broadcast);
+    newOpValue = newOp->getResult(0);
+  } else if constexpr (std::is_same_v<T, mlir::hivm::VDivOp>) {
+    auto newOp = builder.create<T>(
+        loc, insertBase.getType(), mlir::ValueRange{src0, src1},
+        mlir::ValueRange{insertBase}, /*isSigned=*/true, /*isHP=*/false,
+        transpose.asArrayRef(), broadcast.asArrayRef());
+    newOpValue = newOp->getResult(0);
+  } else if constexpr (std::is_same_v<T, mlir::hivm::VMaxOp> ||
+                       std::is_same_v<T, mlir::hivm::VMinOp>) {
+    auto newOp = builder.create<T>(
+        loc, insertBase.getType(), mlir::ValueRange{src0, src1},
+        mlir::ValueRange{insertBase}, /*is_signed=*/true, transpose, broadcast);
     newOpValue = newOp->getResult(0);
   } else {
     auto newOp = builder.create<T>(

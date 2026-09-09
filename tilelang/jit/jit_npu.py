@@ -23,6 +23,7 @@ from tvm import tir
 from tvm.tir import PrimFunc
 from tvm import transform
 
+from tilelang.env import THIRD_PARTY_ROOT
 from tilelang.profiler import Profiler, TensorSupplyType
 from tilelang.transform.pass_config import normalize_pass_configs
 
@@ -1747,6 +1748,16 @@ class compiler_npu:
             so_path = os.path.join(tmpdir, "libkernel.so")
 
             npu_compiler_path = get_npucompiler_path()
+            compiler_env = None
+            if (
+                _is_a5_device()
+                and Path(npu_compiler_path).parent == Path(THIRD_PARTY_ROOT) / "bin"
+            ):
+                compiler_env = os.environ.copy()
+                # NPUIR locates hivmc-a5 through BISHENG_INSTALL_PATH, then PATH.
+                compiler_env["BISHENG_INSTALL_PATH"] = str(
+                    Path(npu_compiler_path).parent
+                )
             # TileLang Ascend JIT Runtime now follows Triton JIT style.
             # bishengir-compile --enable-triton-kernel-compile=true make sure the way.
 
@@ -1801,7 +1812,11 @@ class compiler_npu:
             )
             try:
                 ret = subprocess.run(
-                    cmd_list, capture_output=True, check=True, text=True
+                    cmd_list,
+                    capture_output=True,
+                    check=True,
+                    text=True,
+                    env=compiler_env,
                 )
                 print("AscendNPU IR compile success:", ret.stdout)
             except subprocess.CalledProcessError as e:

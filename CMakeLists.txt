@@ -65,6 +65,9 @@ endif()
 # Setting up MLIR infrastructure
 set(NPUIR_LIBS "")
 if(USE_NPUIR)
+  # Match the feature flags used to generate stable's exported MLIR interfaces.
+  add_compile_definitions(BSPUB_DAVINCI BSPUB_DAVINCI_BISHENGIR
+    BSPUB_DAVINCI_BISHENGIR_A5 BSPUB_DAVINCI_BISHENGIR_A5_NPUIR)
   set(BISHENGIR_INCLUDE_DIRS "")
   set(BISHENGIR_LIBRARY_DIRS "")
   if(NOT BISHENGIR_ROOT_PATH)
@@ -82,41 +85,6 @@ if(USE_NPUIR)
     list(INSERT CMAKE_PREFIX_PATH 0 ${BISHENGIR_ROOT_PATH})
     find_package(MLIR REQUIRED CONFIG)
     list(APPEND CMAKE_MODULE_PATH "${MLIR_CMAKE_DIR}" "${LLVM_CMAKE_DIR}")
-  endif()
-  set(TRITON_INCLUDE_DIR
-    "${PROJECT_SOURCE_DIR}/3rdparty/AscendNPU-IR-Dev/third-party/triton/include"
-    CACHE PATH "Path to Triton headers required by AscendNPU-IR"
-  )
-  set(TRITON_BINARY_INCLUDE_DIR
-    "${PROJECT_SOURCE_DIR}/3rdparty/AscendNPU-IR-Dev/build/tools/triton/include"
-    CACHE PATH "Path to generated Triton headers required by AscendNPU-IR"
-  )
-  set(TRITON_BIN_INCLUDE_DIR
-    "${PROJECT_SOURCE_DIR}/3rdparty/AscendNPU-IR-Dev/third-party/triton/bin"
-    CACHE PATH "Path to Triton registration headers required by AscendNPU-IR"
-  )
-  set(TRITON_THIRD_PARTY_INCLUDE_DIR
-    "${PROJECT_SOURCE_DIR}/3rdparty/AscendNPU-IR-Dev/third-party/triton/third_party"
-    CACHE PATH "Path to Triton third-party headers required by AscendNPU-IR"
-  )
-  set(TRITON_THIRD_PARTY_BINARY_INCLUDE_DIR
-    "${PROJECT_SOURCE_DIR}/3rdparty/AscendNPU-IR-Dev/build/tools/triton/third_party"
-    CACHE PATH "Path to generated Triton third-party headers required by AscendNPU-IR"
-  )
-  if(EXISTS "${TRITON_INCLUDE_DIR}/triton/Dialect/TritonGPU/IR/Dialect.h")
-    list(APPEND BISHENGIR_INCLUDE_DIRS "${TRITON_INCLUDE_DIR}")
-  endif()
-  if(EXISTS "${TRITON_BINARY_INCLUDE_DIR}/triton/Dialect/Triton/IR/Dialect.h.inc")
-    list(APPEND BISHENGIR_INCLUDE_DIRS "${TRITON_BINARY_INCLUDE_DIR}")
-  endif()
-  if(EXISTS "${TRITON_BIN_INCLUDE_DIR}/RegisterTritonDialects.h")
-    list(APPEND BISHENGIR_INCLUDE_DIRS "${TRITON_BIN_INCLUDE_DIR}")
-  endif()
-  if(EXISTS "${TRITON_THIRD_PARTY_INCLUDE_DIR}/nvidia/include/Dialect/NVGPU/IR/Dialect.h")
-    list(APPEND BISHENGIR_INCLUDE_DIRS "${TRITON_THIRD_PARTY_INCLUDE_DIR}")
-  endif()
-  if(EXISTS "${TRITON_THIRD_PARTY_BINARY_INCLUDE_DIR}/nvidia/include/Dialect/NVGPU/IR/Dialect.h.inc")
-    list(APPEND BISHENGIR_INCLUDE_DIRS "${TRITON_THIRD_PARTY_BINARY_INCLUDE_DIR}")
   endif()
   message(STATUS "BISHENGIR_INCLUDE_DIRS: ${BISHENGIR_INCLUDE_DIRS}")
   message(STATUS "BISHENGIR_LIBRARY_DIRS: ${BISHENGIR_LIBRARY_DIRS}")

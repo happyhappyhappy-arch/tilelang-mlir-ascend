@@ -143,30 +143,27 @@ if [ -z "$BISHENGIR_PATH" ]; then
     echo "warring: no --bishengir-path set, bishengir path will be found in environment variable PATH"
     # build bishengir in 3rdparty
     echo "build bishengir in 3rdparty"
-    if [ "$TARGET" = "A5" ]; then
-        echo "Building for Ascend A5 platform with AscendNPU-IR-Dev..."
-        git submodule update --init --recursive 3rdparty/AscendNPU-IR-Dev
-        pushd 3rdparty/AscendNPU-IR-Dev
-        rm -rf ./build
-        mkdir build
-        ./build-tools/build.sh --c-compiler clang --cxx-compiler clang++ \
-        --add-cmake-options="-DCMAKE_LINKER=lld -DLLVM_ENABLE_LLD=ON -DLLVM_ENABLE_RTTI=ON" --build-type Release -j${MAKE_JOBS} --enable-assertion \
-        --disable-werror --disable-mlir-werror --disable-bishengir-werror --build-triton \
-        --build ./build   --apply-patches --python-binding
-        BISHENGIR_PATH="./3rdparty/AscendNPU-IR-Dev/build/install"
-        popd
-    else
-        echo "Building for Ascend A2/A3 platform with AscendNPU-IR..."
-        git submodule update --init --recursive 3rdparty/AscendNPU-IR
-        pushd 3rdparty/AscendNPU-IR
-        bash ./build-tools/apply_patches.sh
-        rm -rf ./build
-        mkdir build
-        ./build-tools/build.sh -o ./build --python-binding --c-compiler=clang --cxx-compiler=clang++ \
-        --add-cmake-options="-DCMAKE_LINKER=lld -DLLVM_ENABLE_LLD=ON -DLLVM_ENABLE_RTTI=ON" --apply-patches --bishengir-publish=off
-        BISHENGIR_PATH="./3rdparty/AscendNPU-IR/build/install"
-        popd
-    fi
+    echo "Building AscendNPU-IR stable for ${TARGET}..."
+    git submodule update --init 3rdparty/AscendNPU-IR || exit 1
+    pushd 3rdparty/AscendNPU-IR
+    git submodule sync
+    git submodule update --init third-party/llvm-project third-party/torch-mlir || exit 1
+    ./build-tools/build.sh --rebuild -o ./build --python-binding --c-compiler=clang --cxx-compiler=clang++ \
+        --add-cmake-options="-DCMAKE_LINKER=lld -DLLVM_ENABLE_LLD=ON -DLLVM_ENABLE_RTTI=ON" \
+        --bishengir-publish=ON --build-triton \
+        --build-bishengir-template --bisheng-compiler="$(dirname "$(command -v ccec)")" || exit 1
+    # TileLang also needs development headers, libraries and Python bindings.
+    cmake --install build || exit 1
+    # Upstream installs BiShengIR headers but omits its embedded Triton headers.
+    NPUIR_INCLUDE_DIR="$(pwd)/build/install/include"
+    for include_dir in bishengir/triton/{include,bin,third_party} \
+        build/tools/bishengir/bishengir/triton/{include,third_party}; do
+        (cd "$include_dir" && find . -type f \
+            \( -name '*.h' -o -name '*.inc' -o -name '*.td' -o -name '*.def' \) \
+            -exec cp --parents -t "$NPUIR_INCLUDE_DIR" {} +) || exit 1
+    done
+    popd
+    BISHENGIR_PATH="$(pwd)/3rdparty/AscendNPU-IR/build/install"
 fi
 
 if [ -d build ]; then
@@ -181,7 +178,7 @@ echo "set(USE_NPUIR ON)" >> config.cmake
 echo "set(BISHENGIR_ROOT_PATH $BISHENGIR_PATH)" >> config.cmake
 
 echo "Running CMake for TileLang..."
-cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DPython3_EXECUTABLE="$PYTHON" -DMLIR_INCLUDE_TESTS=${ENABLE_TESTS} -DTILELANG_NPUIR_TARGET=${TARGET} -DCMAKE_CXX_FLAGS="-I$(pwd)/3rdparty/AscendNPU-IR-Dev/third-party/triton/include -I$(pwd)/3rdparty/tvm/3rdparty/triton/python" ..
+cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DPython3_EXECUTABLE="$PYTHON" -DMLIR_INCLUDE_TESTS=${ENABLE_TESTS} -DTILELANG_NPUIR_TARGET=${TARGET} ..
 if [ $? -ne 0 ]; then
     echo "Error: CMake configuration failed."
     exit 1

@@ -1,6 +1,7 @@
 # Should be mirrored in pyproject.toml
 build
-cmake>=3.26
+cmake>=3.28,<4
+ninja>=1.12
 packaging
 pybind11==3.0.1
 setuptools>=61
