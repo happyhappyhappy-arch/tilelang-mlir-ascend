@@ -1746,7 +1746,9 @@ class compiler_npu:
             bin_path = os.path.join(tmpdir, "kernel.o")
             so_path = os.path.join(tmpdir, "libkernel.so")
 
-            npu_compiler_path = get_npucompiler_path()
+            # The bundled release compiler currently targets A2/A3. Keep A5
+            # on its existing compiler until the two source lines are unified.
+            npu_compiler_path = get_npucompiler_path(prefer_bundled=not _is_a5_device())
             # TileLang Ascend JIT Runtime now follows Triton JIT style.
             # bishengir-compile --enable-triton-kernel-compile=true make sure the way.
 

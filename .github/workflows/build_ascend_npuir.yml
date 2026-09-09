@@ -21,6 +21,11 @@ env:
 jobs:
   build-npuir:
     runs-on: ${{ matrix.runner }}
+    container:
+      image: quay.io/ascend/cann:9.1.0-910b-ubuntu22.04-py3.11
+    defaults:
+      run:
+        shell: bash -l -e -o pipefail {0}
     timeout-minutes: 180
     strategy:
       matrix:
@@ -33,6 +38,12 @@ jobs:
       npuir-commit: ${{ steps.npuir-version.outputs.commit }}
 
     steps:
+    - name: Prepare build container
+      run: |
+        apt-get update
+        apt-get install -y --no-install-recommends git ca-certificates
+        git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
     - name: Checkout repository
       uses: actions/checkout@v4
       with:
@@ -48,7 +59,7 @@ jobs:
 
     - name: Compute cache key
       id: cache-key
-      run: echo "key=npuir-prebuild-rtti-${{ matrix.arch }}-${{ steps.npuir-version.outputs.commit }}" >> "$GITHUB_OUTPUT"
+      run: echo "key=npuir-prebuild-toolchain-v1-${{ matrix.arch }}-${{ steps.npuir-version.outputs.commit }}-${{ hashFiles('3rdparty/patch/**', '.github/workflows/build_ascend_npuir.yml') }}" >> "$GITHUB_OUTPUT"
 
     - name: Restore NPUIR prebuild from cache
       id: cache
@@ -64,17 +75,11 @@ jobs:
         cd 3rdparty/AscendNPU-IR
         git submodule update --init
 
-    - name: Set up Python 3.11
-      if: steps.cache.outputs.cache-hit != 'true'
-      uses: actions/setup-python@v5
-      with:
-        python-version: "3.11"
-
     - name: Install build dependencies
       if: steps.cache.outputs.cache-hit != 'true'
       run: |
-        sudo apt-get update
-        sudo apt-get install -y --no-install-recommends \
+        apt-get update
+        apt-get install -y --no-install-recommends \
           clang \
           lld \
           cmake \
@@ -82,18 +87,23 @@ jobs:
           libzstd-dev \
           zlib1g-dev \
           patch
-        pip install numpy pybind11==3.0.1
+        pip install "cmake>=3.28,<4" numpy pybind11==3.0.1
 
     - name: Apply patches
       if: steps.cache.outputs.cache-hit != 'true'
-      working-directory: 3rdparty/AscendNPU-IR
-      run: bash ./build-tools/apply_patches.sh
+      run: |
+        bash 3rdparty/patch/apply_npuir_patches.sh
+        cd 3rdparty/AscendNPU-IR
+        bash ./build-tools/apply_patches.sh
 
     - name: Configure AscendNPU-IR
       if: steps.cache.outputs.cache-hit != 'true'
       working-directory: 3rdparty/AscendNPU-IR
       run: |
         NPUIR_ROOT=$(pwd)
+        BISHENG_BIN="$(dirname "$(command -v ccec)")"
+        test -x "${BISHENG_BIN}/ccec"
+        test -x "${BISHENG_BIN}/llvm-link"
         cmake third-party/llvm-project/llvm -B build \
           -DCMAKE_C_COMPILER=clang \
           -DCMAKE_CXX_COMPILER=clang++ \
@@ -109,7 +119,9 @@ jobs:
           -DPython3_EXECUTABLE=$(which python3) \
           -DCMAKE_INSTALL_PREFIX="${NPUIR_ROOT}/build/install" \
           -DBSPUB_DAVINCI_BISHENGIR=ON \
-          -DBISHENGIR_PUBLISH=OFF \
+          -DBISHENGIR_PUBLISH=ON \
+          -DBISHENGIR_BUILD_TEMPLATE=ON \
+          -DBISHENG_COMPILER_PATH="${BISHENG_BIN}" \
           -DCMAKE_LINKER=lld \
           -DLLVM_ENABLE_LLD=ON
 
@@ -123,7 +135,8 @@ jobs:
     - name: Install AscendNPU-IR
       if: steps.cache.outputs.cache-hit != 'true'
       working-directory: 3rdparty/AscendNPU-IR
-      run: cmake --install build
+      run: |
+        cmake --install build
 
     - name: Populate cache directory
       if: steps.cache.outputs.cache-hit != 'true'

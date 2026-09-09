@@ -20,7 +20,10 @@ jobs:
   test:
     runs-on: linux-aarch64-a3-2
     container:
-      image: swr.cn-southwest-2.myhuaweicloud.com/base_image/ascend-ci/cann:8.5.0-a3-ubuntu22.04-py3.11
+      image: quay.io/ascend/cann:9.1.0-910b-ubuntu22.04-py3.11
+    defaults:
+      run:
+        shell: bash -l -e -o pipefail {0}
     timeout-minutes: 120
     env:
       UV_INDEX_URL: "http://cache-service.nginx-pypi-cache.svc.cluster.local/pypi/simple"
@@ -52,8 +55,8 @@ jobs:
         pip config set global.index-url http://${CACHING_URL}/pypi/simple
         pip config set global.trusted-host "${CACHING_URL}"
         pip install uv
-        uv pip install torch==2.7.1
-        uv pip install torch-npu==2.7.1
+        uv pip install --index-url https://download.pytorch.org/whl/cpu torch==2.10.0+cpu
+        uv pip install torch-npu==2.10.0
         uv pip install dist/*.whl
         uv pip install pytest pytest-xdist pytest-html numpy
 
@@ -71,7 +74,6 @@ jobs:
     - name: Run npuir examples (python scripts)
       env:
         TILELANG_CLEAR_CACHE: "1"
-      shell: bash
       run: |
         set -euo pipefail
         mkdir -p testing/npuir/output/examples
@@ -81,6 +83,7 @@ jobs:
       env:
         TILELANG_CLEAR_CACHE: "1"
       run: |
+        set -euo pipefail
         python -m pytest -v testing/npuir/*_ops -n 2 \
           --html=testing/npuir/output/report.html --self-contained-html \
           --junitxml=testing/npuir/output/junit.xml

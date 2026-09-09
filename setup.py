@@ -373,7 +373,37 @@ def patch_libs(libpath):
 class TileLangBuilPydCommand(build_py):
     """Customized setuptools install command - builds TVM after setting up LLVM."""
 
+    def copy_npuir_toolchain(self):
+        source = os.path.join(ROOT_DIR, "3rdparty")
+        compiler = os.path.join(source, "bin", "bishengir-compile")
+        if not os.path.isfile(compiler) or not os.access(compiler, os.X_OK):
+            raise RuntimeError(
+                "NPUIR wheel requires executable 3rdparty/bin/bishengir-compile; "
+                "run build_wheel.sh to stage the compiler before packaging"
+            )
+        for name in (
+            "host.bc",
+            "meta_op.aic.bc",
+            "meta_op.aiv.bc",
+            "meta_op.mix.aic.bc",
+            "meta_op.mix.aiv.bc",
+        ):
+            resource = os.path.join(source, "lib", name)
+            if not os.path.isfile(resource) or os.path.getsize(resource) == 0:
+                raise RuntimeError(f"NPUIR wheel is missing 3rdparty/lib/{name}")
+        for directory in ("bin", "lib"):
+            destination = os.path.join(
+                self.build_lib, PACKAGE_NAME, "3rdparty", directory
+            )
+            # Do not retain binaries from an earlier build/architecture.
+            if os.path.isdir(destination):
+                shutil.rmtree(destination)
+            shutil.copytree(os.path.join(source, directory), destination)
+            logger.info(f"Bundled NPUIR toolchain: {directory} -> {destination}")
+
     def run(self):
+        if USE_NPUIR:
+            self.copy_npuir_toolchain()
         build_py.run(self)
         self.run_command("build_ext")
         build_ext_cmd = self.get_finalized_command("build_ext")

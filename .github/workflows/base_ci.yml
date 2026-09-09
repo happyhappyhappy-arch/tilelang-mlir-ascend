@@ -2,7 +2,7 @@ name: Base CI
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, sglang-dpv4-poc]
   release:
     types: [published, prereleased]
 

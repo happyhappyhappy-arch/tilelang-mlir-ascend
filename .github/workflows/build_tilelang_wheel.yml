@@ -33,6 +33,11 @@ env:
 jobs:
   build-wheel:
     runs-on: ${{ matrix.runner }}
+    container:
+      image: quay.io/ascend/cann:9.1.0-910b-ubuntu22.04-py3.11
+    defaults:
+      run:
+        shell: bash -l -e -o pipefail {0}
     timeout-minutes: 120
     strategy:
       fail-fast: false
@@ -43,6 +48,12 @@ jobs:
           - arch: arm64
             runner: ubuntu-22.04-arm
     steps:
+    - name: Prepare build container
+      run: |
+        apt-get update
+        apt-get install -y --no-install-recommends git ca-certificates
+        git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
     - name: Checkout
       uses: actions/checkout@v4
       with:
@@ -56,29 +67,37 @@ jobs:
         mkdir -p 3rdparty/composable_kernel/include
         mkdir -p 3rdparty/composable_kernel/library
 
+    - name: Resolve prebuild versions
+      id: prebuild-versions
+      env:
+        NPUIR_COMMIT: ${{ inputs.npuir-commit }}
+        TVM_COMMIT: ${{ inputs.tvm-commit }}
+      run: |
+        npuir_commit=$(git rev-parse HEAD:3rdparty/AscendNPU-IR)
+        tvm_commit=$(git rev-parse HEAD:3rdparty/tvm)
+        test -z "$NPUIR_COMMIT" || test "$NPUIR_COMMIT" = "$npuir_commit"
+        test -z "$TVM_COMMIT" || test "$TVM_COMMIT" = "$tvm_commit"
+        echo "npuir=$npuir_commit" >> "$GITHUB_OUTPUT"
+        echo "tvm=$tvm_commit" >> "$GITHUB_OUTPUT"
+
     - name: Restore NPUIR prebuild from cache
       uses: actions/cache/restore@v4
       with:
         path: ${{ env.NPUIR_INSTALL_DIR }}
-        key: npuir-prebuild-rtti-${{ matrix.arch }}-${{ inputs.npuir-commit }}
+        key: npuir-prebuild-toolchain-v1-${{ matrix.arch }}-${{ steps.prebuild-versions.outputs.npuir }}-${{ hashFiles('3rdparty/patch/**', '.github/workflows/build_ascend_npuir.yml') }}
         fail-on-cache-miss: true
 
     - name: Restore TVM prebuild from cache
       uses: actions/cache/restore@v4
       with:
         path: ${{ env.TVM_INSTALL_DIR }}
-        key: tvm-prebuild-${{ matrix.arch }}-${{ inputs.tvm-commit }}
+        key: tvm-prebuild-${{ matrix.arch }}-${{ steps.prebuild-versions.outputs.tvm }}
         fail-on-cache-miss: true
-
-    - name: Set up Python ${{ env.PYTHON_VERSION }}
-      uses: actions/setup-python@v5
-      with:
-        python-version: ${{ env.PYTHON_VERSION }}
 
     - name: Install build dependencies
       run: |
-        sudo apt-get update
-        sudo apt-get install -y --no-install-recommends \
+        apt-get update
+        apt-get install -y --no-install-recommends \
           cmake make libzstd-dev zlib1g-dev patchelf
         pip install -r requirements-build.txt
         pip install lit
@@ -109,7 +128,13 @@ jobs:
         USE_NPUIR: "true"
         BISHENGIR_PATH: ${{ github.workspace }}/npuir-prebuild
         TVM_PREBUILD_PATH: ${{ github.workspace }}/tvm-prebuild
-      run: python setup.py bdist_wheel
+      run: |
+        mkdir -p 3rdparty/bin 3rdparty/lib
+        cp -L --preserve=mode "$BISHENGIR_PATH/bin/bishengir-compile" 3rdparty/bin/
+        for name in host.bc meta_op.aic.bc meta_op.aiv.bc meta_op.mix.aic.bc meta_op.mix.aiv.bc; do
+          cp -L "$BISHENGIR_PATH/lib/$name" 3rdparty/lib/
+        done
+        python setup.py bdist_wheel
 
     - name: Upload wheel artifact
       uses: actions/upload-artifact@v4
