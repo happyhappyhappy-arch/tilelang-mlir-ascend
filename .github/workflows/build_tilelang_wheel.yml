@@ -100,7 +100,7 @@ jobs:
       uses: actions/cache/restore@v4
       with:
         path: ${{ env.TVM_INSTALL_DIR }}
-        key: tvm-prebuild-${{ matrix.arch }}-${{ steps.prebuild-versions.outputs.tvm }}
+        key: tvm-prebuild-isolated-v1-${{ matrix.arch }}-${{ steps.prebuild-versions.outputs.tvm }}
         fail-on-cache-miss: true
 
     - name: Build tilelang (cmake)

@@ -7,8 +7,8 @@ import shutil
 from typing import Literal, Union
 from tilelang.env import THIRD_PARTY_ROOT
 from tilelang import tvm as tvm
-from tvm.target import Target
-from tvm.contrib import rocm
+from tilelang.tvm.target import Target
+from tilelang.tvm.contrib import rocm
 from tilelang.contrib import nvcc
 
 AVALIABLE_TARGETS = {
