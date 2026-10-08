@@ -1,0 +1,15 @@
+{
+  "tilelang_version": "0.1.15",
+  "tilelang_commit": "a35f8ddf45eba16c21211ec8822d56ce5363036f",
+  "cann_version": "9.3.0",
+  "cann_home": "/usr/local/Ascend/ascend-toolkit/latest",
+  "cann_set_env": "/usr/local/Ascend/ascend-toolkit/set_env.sh",
+  "bisheng_home": "",
+  "cann_version_file": "",
+  "cann_packages": [
+    {"name": "toolkit", "url": "", "sha256": ""},
+    {"name": "950-ops", "url": "", "sha256": ""}
+  ],
+  "torch": {"version": "", "url": "", "sha256": ""},
+  "torch_npu": {"version": "", "url": "", "sha256": ""}
+}
