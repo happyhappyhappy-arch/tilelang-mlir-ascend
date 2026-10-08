@@ -73,6 +73,7 @@ def main():
                 "tilelang": tilelang.__version__,
                 "commit": config["tilelang_commit"],
                 "cann": config["cann_version"],
+                "cann_package": config["cann_package_version"],
                 "torch": importlib.metadata.version("torch"),
                 "torch_npu": importlib.metadata.version("torch_npu"),
                 "arch": os.environ["ASCEND_NPU_ARCH"],

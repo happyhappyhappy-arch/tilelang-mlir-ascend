@@ -1,7 +1,8 @@
 # TileLang Ascend 950 image
 
-The release image contains TileLang **0.1.15**, CANN **9.3.0**, Python **3.11**
-and Ubuntu **22.04** for **linux/amd64**:
+The release image contains TileLang **0.1.15**, CANN **9.3.0**
+(`9.3.0~weekly.20260916.01`), Torch **2.10.0+cpu**, Torch-NPU **2.10.0**,
+Python **3.11** and Ubuntu **22.04** for **linux/amd64**:
 
 ```text
 quay.io/ascend/tilelang:0.1.15-950-ubuntu22.04-py3.11-x86_64
@@ -9,23 +10,27 @@ quay.io/ascend/tilelang:0.1.15-950-ubuntu22.04-py3.11-x86_64
 
 ## Release configuration
 
-The build is not ready to publish until the CANN and Torch package information
-in [tilelang/release.json](tilelang/release.json) has been completed. Empty fields
+The build is not ready to publish until the CANN checksums and installation paths
+in [tilelang/release.json](tilelang/release.json) have been verified. Empty fields
 are intentional: preflight fails before downloading the source or building an
 image. There are no release-time version or download URL inputs.
 
 Before publishing, commit the verified values for:
 
-- CANN 9.3.0 x86_64 Toolkit and 950 ops HTTPS URLs and SHA256 checksums.
+- SHA256 checksums for the pinned CANN x86_64 Toolkit and 950 ops downloads.
+  The fixed URLs select batch `20260916000323606`; confirm they are reachable
+  from the runner. The preflight rejects aarch64 packages and other weekly builds.
 - Any additional required CANN `.run` packages, appended to `cann_packages` in
   installation order. Toolkit is installed first, then 950 ops.
 - The CANN home, environment script, compiler home (containing `bin/bisheng`
   and the CCE-capable `bin/ld.lld`) and installed version metadata file.
-  The version file must identify `9.3.0` with a `version=`, `Version=` or
+  The version file must identify `9.3.0` or `9.3.0~weekly.20260916.01` with a `version=`, `Version=` or
   `CANN_VERSION=` line (a colon separator is also accepted). Verify these
   paths and the metadata format against the supplied installation bundle.
-- Compatible Python 3.11 x86_64 CPU Torch and Torch-NPU wheel URLs, checksums
-  and exact distribution versions, including any local version suffix.
+
+Torch `2.10.0+cpu` and Torch-NPU `2.10.0` Python 3.11 x86_64 wheel URLs and
+SHA256 checksums are fixed from the PyTorch CPU index and PyPI metadata. The
+Torch-NPU wheel requires `torch==2.10.0`, which accepts the CPU local version.
 
 The source is pinned to `v0.1.15`, commit
 `a35f8ddf45eba16c21211ec8822d56ce5363036f`, with its recursive submodules.

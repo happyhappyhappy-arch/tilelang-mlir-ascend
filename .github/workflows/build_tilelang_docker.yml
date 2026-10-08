@@ -161,6 +161,7 @@ jobs:
           from pathlib import Path
           config = json.loads(Path('ci/docker/tilelang/release.json').read_text())
           print(f"CANN: {config['cann_version']}")
+          print(f"CANN package: {config['cann_package_version']}")
           for name in ('torch', 'torch_npu'):
               print(f"{name}: {config[name]['version']}")
           PY

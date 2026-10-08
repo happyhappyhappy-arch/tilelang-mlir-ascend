@@ -19,6 +19,7 @@ def validate(config):
         "tilelang_version": "0.1.15",
         "tilelang_commit": "a35f8ddf45eba16c21211ec8822d56ce5363036f",
         "cann_version": "9.3.0",
+        "cann_package_version": "9.3.0~weekly.20260916.01",
     }.items():
         if config.get(key) != expected:
             errors.append(f"{key} must be {expected}")
@@ -50,6 +51,14 @@ def validate(config):
         suffix = ".whl" if name in ("torch", "torch_npu") else ".run"
         if not unquote(url.path).endswith(suffix):
             errors.append(f"{name}.url must identify a {suffix} package")
+        if name in ("toolkit", "950-ops"):
+            expected_name = (
+                f"Ascend-cann-{name}_{config['cann_package_version']}_linux-x86_64.run"
+            )
+            if Path(unquote(url.path)).name != expected_name:
+                errors.append(
+                    f"{name}.url must identify the x86_64 package {expected_name}"
+                )
     if errors:
         raise ValueError(
             "Release configuration is incomplete or invalid:\n- " + "\n- ".join(errors)
@@ -95,11 +104,19 @@ def download(package, directory):
 
 def check_cann(config):
     metadata = Path(config["cann_version_file"]).read_text()
-    version = re.escape(config["cann_version"])
+    version = (
+        "(?:"
+        + "|".join(
+            re.escape(config[key]) for key in ("cann_version", "cann_package_version")
+        )
+        + ")"
+    )
     if not re.search(
         rf"(?m)^\s*(?:version|Version|CANN_VERSION)\s*[:=]\s*{version}\s*$", metadata
     ):
-        raise ValueError("CANN installation metadata does not identify version 9.3.0")
+        raise ValueError(
+            "CANN installation metadata does not identify the configured 9.3.0 release"
+        )
     for path in (
         config["cann_set_env"],
         f"{config['bisheng_home']}/bin/bisheng",

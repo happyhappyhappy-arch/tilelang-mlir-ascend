@@ -17,7 +17,8 @@ def complete_config():
     config["cann_version_file"] = "/usr/local/Ascend/test-version.info"
     for package in config["cann_packages"]:
         package.update(
-            url=f"https://example.invalid/{package['name']}.run", sha256="a" * 64
+            url=f"https://example.invalid/Ascend-cann-{package['name']}_{config['cann_package_version']}_linux-x86_64.run",
+            sha256="a" * 64,
         )
     for name in ("torch", "torch_npu"):
         config[name].update(
@@ -59,6 +60,18 @@ class ReleaseTest(unittest.TestCase):
         config["cann_packages"].reverse()
         with self.assertRaisesRegex(ValueError, "toolkit and 950-ops"):
             release.validate(config)
+
+    def test_reject_arm_package_and_other_weekly_build(self):
+        for old, new in (("x86_64", "aarch64"), ("20260916.01", "20260917.01")):
+            with self.subTest(replacement=new):
+                config = complete_config()
+                config["cann_packages"][0]["url"] = config["cann_packages"][0][
+                    "url"
+                ].replace(old, new)
+                with self.assertRaisesRegex(
+                    ValueError, "must identify the x86_64 package"
+                ):
+                    release.validate(config)
 
     def test_download_integrity(self):
         payload = b"test installer bytes"
